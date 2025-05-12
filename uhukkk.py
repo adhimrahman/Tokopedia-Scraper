@@ -5,15 +5,18 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium import webdriver
 from bs4 import BeautifulSoup   # BeautifulSoup untuk baca dan ngurai page HTML
+import pandas as pd             # pip install pandas openpyxl
 import time                     # time untuk ngatur jeda
 import csv                      # csv untuk menyimpan output ke format csv
 
 # Setup Chrome Driver ( ngatur entry ke Google Chrome biar bisa dikontrol sm python )
 # chromedriver.exe is a tools so Python can communicate with Chrome.
-service = Service('D:/(PATH)/chromedriver.exe')
-driver = webdriver.Chrome(service=service)
+service = Service('D:/adhim/APP/chromedriver-win64/chromedriver-win64/chromedriver.exe')
+base_url = 'https://www.tokopedia.com/citracosmet-1'    # url toko tokped / link utama yg bakal dibuka
 
-base_url = 'https://www.tokopedia.com/(toko)'    # url toko tokped / link utama yg bakal dibuka
+options = webdriver.ChromeOptions()
+options.add_argument('--log-level=3')
+driver = webdriver.Chrome(service=service, options=options)
 
 current_page = 1    # nomor halaman awal mulai untuk pagination
 productDatas = []   # array kosong untuk nyimpan semua data produk (tolong beri contoh)
@@ -74,13 +77,25 @@ while True: # loop untuk ngulangi proses browsing sampai page terakhir
             tagDesc = detailSoup.find('div', {'data-testid': 'lblPDPDescriptionProduk'})
             desc = tagDesc.get_text() if tagDesc else 'No desc'
 
+            # AMBIL KATEGORI TERAKHIR DARI BREADCRUMB
+            category = 'Unknown'
+            try:
+                breadcrumb = detailSoup.find('ol', {'data-testid': 'lnkPDPDetailBreadcrumb'})
+                if breadcrumb:
+                    li_tags = breadcrumb.find_all('li')
+                    if len(li_tags) >= 2:
+                        category = li_tags[-2].get_text(strip=True)  # Ambil yang sebelum nama produk
+            except Exception as e:
+                print(f'Gagal ambil kategori: {e}')
+
             # simpan data
             productDatas.append({
                 'name': name,
                 'price': price,
                 'image': image,
                 'desc': desc,
-                'link': link
+                'link': link,
+                'category': category
             })
             print(f'[{idx}/{len(prodCards)}] Sukses ambil data: {name}')
 
@@ -107,13 +122,9 @@ while True: # loop untuk ngulangi proses browsing sampai page terakhir
         print('Tidak ada tombol next, scraping selesai.')
         break
 
-# csv
-with open('prods.csv', 'w', newline='', encoding='utf-8') as csvfile:
-    field = ['name', 'price', 'image', 'desc', 'link']
-    writer = csv.DictWriter(csvfile, fieldnames=field)
-    writer.writeheader()
-    for product in productDatas:
-        writer.writerow(product)
+# Excel
+df = pd.DataFrame(productDatas)
+df.to_excel('prods4.xlsx', index=False, engine='openpyxl')
 
 print('\n=== Scraping selesai. Data disimpan di file csv ===')
 driver.quit()   # tutup browser
